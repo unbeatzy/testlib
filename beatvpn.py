@@ -14,13 +14,10 @@ from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeybo
 from yoomoney import Client, Quickpay
 from constants import ADMIN_ID, API_TOKEN, DB_NAME, WEBAPP_HOST, WEBAPP_PORT, WEBHOOK_PATH, WEBHOOK_URL, YOOMONEY_TOKEN, YOOMONEY_WALLET
 
-
-
 API_TOKEN = os.getenv('API_TOKEN')
 ADMIN_ID = os.getenv('ADMIN_ID')
 YOOMONEY_TOKEN = os.getenv('YOOMONEY_TOKEN')
 YOOMONEY_WALLET = os.getenv('YOOMONEY_WALLET')
-
 
 bot = Bot(token=API_TOKEN)
 client = Client(YOOMONEY_TOKEN)
@@ -294,12 +291,6 @@ async def pay_with_card(message: types.Message, state: FSMContext):
                              reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="⬅️ Назад")]], resize_keyboard=True))
     await state.clear()
 
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-
 # Функция для проверки платежа
 async def check_payment(payment_label):
     logger.info(f"Начинаем проверку платежа с меткой: {payment_label}")
@@ -500,10 +491,33 @@ async def view_active_keys_button(message: types.Message):
     else:
         await message.answer("❌ У вас нет прав для выполнения этой команды. ❌")
 
+async def on_startup(bot: Bot) -> None:
+    await bot.set_webhook(WEBHOOK_URL)
 
-async def start():
-    await dp.start_polling(bot, skip_updates=True)
+router = Router()
 
+WEBHOOK_PATH = os.getenv('WEBHOOK_PATH')
+WEBHOOK_HOST = os.getenv('WEBHOOK_HOST')
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+WEBAPP_HOST = os.getenv('WEBAPP_HOST')
+WEBAPP_PORT = int(os.getenv('WEBAPP_PORT'))
+
+def main() -> None:
+    dp.include_router(router)
+    dp.startup.register(on_startup)
+
+    app = web.Application()
+
+    webhook_requests_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+
+    webhook_requests_handler.register(app, path=WEBHOOK_PATH)
+
+    setup_application(app, dp, bot=bot)
+
+    web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
 
 if __name__ == '__main__':
-    asyncio.run(start())
+    # Настройка логирования
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger(__name__)
+    main()
