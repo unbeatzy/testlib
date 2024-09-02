@@ -410,17 +410,30 @@ async def buy(message: types.Message):
     await message.answer(
         "✏️ Инструкция по подключению доступна по ссылке: https://telegra.ph/Nastrojka-klienta-dlya-VPN-Na-PK-iOS-i-Android-08-08",
         reply_markup=keyboard)
+    
 
+# Команда для входа в админ-панель
+@dp.message(Command('admin'))
+async def admin_panel(message: types.Message):
+    if str(message.from_user.id) == ADMIN_ID:
+        buttons = [
+            [KeyboardButton(text="🔑 Добавить ключи")],
+            [KeyboardButton(text="📢 Отправить всем сообщение")],
+            [KeyboardButton(text="👀 Посмотреть активные ключи")]
+        ]
+        keyboard = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
+        await message.answer("Выберите действие:", reply_markup=keyboard)
+    else:
+        await message.answer("❌ У вас нет прав для выполнения этой команды. ❌")
 
-# Команда для загрузки ключей (только для администратора)
-@dp.message(Command('add_keys'))
-async def add_keys(message: types.Message, state: FSMContext):
+# Обработка нажатия кнопки "🔑 Добавить ключи"
+@dp.message(F.text == "🔑 Добавить ключи")
+async def add_keys_button(message: types.Message, state: FSMContext):
     if str(message.from_user.id) == ADMIN_ID:
         await message.answer("🕘 Отправьте срок действия ключей (в месяцах):")
         await state.set_state(AddKeysState.waiting_for_duration)
     else:
         await message.answer("❌ У вас нет прав для выполнения этой команды. ❌")
-
 
 # Ожидание ввода срока действия ключей от администратора
 @dp.message(AddKeysState.waiting_for_duration, F.text)
@@ -429,7 +442,6 @@ async def process_duration(message: types.Message, state: FSMContext):
     await state.update_data(duration=duration)
     await state.set_state(AddKeysState.waiting_for_keys)
     await message.answer("🔑 Теперь отправьте ключи, каждый с новой строки:")
-
 
 # Ожидание ключей и сохранение их в базе данных
 @dp.message(AddKeysState.waiting_for_keys, F.text)
@@ -444,15 +456,14 @@ async def process_keys(message: types.Message, state: FSMContext):
     await message.answer("Ключи успешно добавлены! ✅")
 
 
-# Команда для массовой рассылки сообщения (только для администратора)
-@dp.message(Command('broadcast'))
-async def broadcast(message: types.Message, state: FSMContext):
+# Обработка нажатия кнопки "📢 Отправить всем сообщение"
+@dp.message(F.text == "📢 Отправить всем сообщение")
+async def broadcast_button(message: types.Message, state: FSMContext):
     if str(message.from_user.id) == ADMIN_ID:
         await message.answer("📝 Отправьте сообщение для рассылки всем пользователям.")
         await state.set_state(BroadcastState.waiting_for_message)
     else:
         await message.answer("❌ У вас нет прав для выполнения этой команды. ❌")
-
 
 # Ожидание от администратора текста для рассылки
 @dp.message(BroadcastState.waiting_for_message, F.text)
@@ -469,9 +480,9 @@ async def process_broadcast_message(message: types.Message, state: FSMContext):
     await message.answer("Рассылка завершена. ✅")
 
 
-# Команда для просмотра активных ключей (только для администратора)
-@dp.message(Command('view_active_keys'))
-async def view_active_keys(message: types.Message):
+# Обработка нажатия кнопки "👀 Посмотреть активные ключи"
+@dp.message(F.text == "👀 Посмотреть активные ключи")
+async def view_active_keys_button(message: types.Message):
     if str(message.from_user.id) == ADMIN_ID:
         cursor.execute('SELECT key, duration FROM vpn_keys WHERE is_used = 0')
         active_keys = cursor.fetchall()
