@@ -499,6 +499,10 @@ async def view_active_keys_button(message: types.Message):
 async def on_startup(bot: Bot) -> None:
     await bot.set_webhook(WEBHOOK_URL)
 
+async def yoomoney_payment_notification_handler(request):
+    print('yoomoney sent notification')
+    return web.Response(text='ty')
+
 router = Router()
 
 WEBHOOK_PATH = os.getenv('WEBHOOK_PATH')
@@ -506,12 +510,17 @@ WEBHOOK_HOST = os.getenv('WEBHOOK_HOST')
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 WEBAPP_HOST = os.getenv('WEBAPP_HOST')
 WEBAPP_PORT = int(os.getenv('WEBAPP_PORT'))
+YOOMONEY_CALLBACK_URL = os.getenv('YOOMONEY_CALLBACK_URL')
 
 def main() -> None:
     dp.include_router(router)
     dp.startup.register(on_startup)
 
     app = web.Application()
+
+    app.add_routes([
+        web.post(YOOMONEY_CALLBACK_URL, yoomoney_payment_notification_handler),
+    ])
 
     webhook_requests_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
 
