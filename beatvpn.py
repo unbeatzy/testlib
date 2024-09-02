@@ -249,6 +249,8 @@ async def pay_with_card(message: types.Message, state: FSMContext):
     # Генерация уникального идентификатора для платежа
     payment_label = str(uuid.uuid4())
 
+    # TODO: save in database payment_label
+
     # Создание платежа с использованием Yoomoney API
     quickpay = Quickpay(
         receiver=YOOMONEY_WALLET,
@@ -265,66 +267,11 @@ async def pay_with_card(message: types.Message, state: FSMContext):
         f"Для оплаты перейдите по ссылке: {payment_url}\nПосле оплаты бот автоматически подтвердит ваш платеж и выдаст оплаченный ключ.",
         reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="⬅️ Назад")]], resize_keyboard=True))
 
-    # Ожидание и проверка платежа
-    if await check_payment(payment_label):
-
-        # Платеж прошел, выдаем новый ключ
-        cursor.execute('SELECT key FROM vpn_keys WHERE is_used = 0 AND duration = ? LIMIT 1', (duration,))
-        key = cursor.fetchone()
-        if key:
-
-            cursor.execute('UPDATE vpn_keys SET is_used = 1 WHERE key = ?', (key[0],))
-            conn.commit()
-
-            # Добавляем запись в таблицу issued_keys
-            cursor.execute('INSERT INTO issued_keys (user_id, payment_label, key, issued) VALUES (?, ?, ?, ?)',
-                           (message.from_user.id, payment_label, key[0], True))
-            conn.commit()
-
-            # Отправка сообщения с ключом и инструкцией
-            keyboard = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🗒 Инструкция по подключению")]], resize_keyboard=True)
-            await message.answer(
-                f"<b>Ваш платеж подтвержден.</b>\nВот ваш ключ на {duration} мес.: \n\n<code>{key[0]}</code>\n\n<b>❗️Нажмите на ключ, чтобы скопировать его❗️</b>\n\nИнструкция по подключению доступна по кнопке ниже.",
-                parse_mode='HTML',
-                reply_markup=keyboard
-            )
-        else:
-            await message.answer("К сожалению, ключи закончились. Пожалуйста, свяжитесь с поддержкой.",
-                                 reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="⬅️ Назад")]], resize_keyboard=True))
-    else:
-        await message.answer("Платеж не был завершен. Попробуйте снова или свяжитесь с поддержкой.",
-                             reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="⬅️ Назад")]], resize_keyboard=True))
     await state.clear()
 
-# Функция для проверки платежа
-async def check_payment(payment_label):
-    logger.info(f"Начинаем проверку платежа с меткой: {payment_label}")
-
-    for attempt in range(60):  # 60 попыток проверки платежа
-        logger.info(f"Попытка {attempt + 1} из 60")
-
-        try:
-            history = client.operation_history(label=payment_label)
-            logger.info(f"Ответ от API: {history}")  # Логирование полного ответа от API
-        except Exception as e:
-            logger.error(f"Ошибка при получении истории операций: {e}")
-            await asyncio.sleep(10)
-            continue
-
-        # Проверяем все операции в истории
-        for operation in history.operations:
-            logger.debug(f"Операция: {operation}, Статус: {operation.status}")
-            if operation.status == "success":
-                logger.info(f"Платеж с меткой {payment_label} успешно подтвержден.")
-                return True
-
-        # Если платеж не найден, ждем перед следующей попыткой
-        logger.info(f"Платеж с меткой {payment_label} не найден, ждем 10 секунд перед следующей попыткой.")
-        await asyncio.sleep(10)
-
-    logger.warning(f"Платеж с меткой {payment_label} не был найден в течение 60 попыток.")
-    return False
-
+    # TODO: По крону или если тут можно спустя какое-то время прислать это сообщение юзеру, что форма не валиднв больше
+    # await message.answer("Платеж не был завершен. Попробуйте снова или свяжитесь с поддержкой.",
+    #     reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="⬅️ Назад")]], resize_keyboard=True))
 
 # Обработка нажатия кнопки "🗒 Инструкция по подключению"
 @dp.callback_query(F.data == 'instruction')
@@ -501,6 +448,34 @@ async def on_startup(bot: Bot) -> None:
 
 async def yoomoney_payment_notification_handler(request):
     print('yoomoney sent notification')
+    # GET LABEL FORM REQUEST
+    # SEARCH RECORD IN DB BY LABEL AND GET USER ID
+    # GENERATE KEY IN MAZAMBIC GUI
+    # SEND VIA BOT MESSAGE WITH KEY BY USER_ID (TELEGMRA ID)
+
+    # Платеж прошел, выдаем новый ключ
+    cursor.execute('SELECT key FROM vpn_keys WHERE is_used = 0 AND duration = ? LIMIT 1', (duration,))
+    key = cursor.fetchone()
+    if key:
+
+        cursor.execute('UPDATE vpn_keys SET is_used = 1 WHERE key = ?', (key[0],))
+        conn.commit()
+
+        # Добавляем запись в таблицу issued_keys
+        cursor.execute('INSERT INTO issued_keys (user_id, payment_label, key, issued) VALUES (?, ?, ?, ?)',
+                        (message.from_user.id, payment_label, key[0], True))
+        conn.commit()
+
+        # Отправка сообщения с ключом и инструкцией
+        keyboard = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🗒 Инструкция по подключению")]], resize_keyboard=True)
+        await message.answer(
+            f"<b>Ваш платеж подтвержден.</b>\nВот ваш ключ на {duration} мес.: \n\n<code>{key[0]}</code>\n\n<b>❗️Нажмите на ключ, чтобы скопировать его❗️</b>\n\nИнструкция по подключению доступна по кнопке ниже.",
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
+    else:
+        await message.answer("К сожалению, ключи закончились. Пожалуйста, свяжитесь с поддержкой.",
+                                reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="⬅️ Назад")]], resize_keyboard=True))
     return web.Response(text='ty')
 
 router = Router()
