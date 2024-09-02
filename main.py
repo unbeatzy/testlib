@@ -85,8 +85,21 @@ async def send_welcome(message: types.Message):
 # Обработка нажатия кнопки "⬅️ Назад" для всех состояний
 @dp.message(F.text == "⬅️ Назад")
 async def go_back(message: types.Message, state: FSMContext):
-    await state.clear()
-    await send_welcome(message)
+    current_state = await state.get_state()
+
+    if current_state == PaymentState.waiting_for_payment_method.state:
+        # Возвращаемся на выбор срока подписки
+        buttons = [
+            [KeyboardButton(text="1 мес. (150 руб.)"), KeyboardButton(text="3 мес. (300 руб.)")],
+            [KeyboardButton(text="6 мес. (600 руб.)"), KeyboardButton(text="12 мес. (1200 руб.)")],
+            [KeyboardButton(text="⬅️ Назад")]
+        ]
+        await message.answer("🕘 Выберите срок подписки", reply_markup=ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True))
+        await state.set_state(None)  # Выход из состояния
+
+    else:
+        await state.clear()  # Очищаем состояние
+        await send_welcome(message)
 
 
 # Обработка нажатия кнопки "Купить"
@@ -100,12 +113,11 @@ async def buy(message: types.Message):
     ]
     await message.answer("🕘 Выберите срок подписки", reply_markup=ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True))
 
-
 # Обработка выбора срока подписки и способов оплаты
 @dp.message(F.text.in_({"1 мес. (150 руб.)", "3 мес. (300 руб.)", "6 мес. (600 руб.)", "12 мес. (1200 руб.)"}))
 async def choose_payment_method(message: types.Message, state: FSMContext):
     duration_mapping = {
-        "1 мес. (150 руб.)": (1, 2),
+        "1 мес. (150 руб.)": (1, 150),
         "3 мес. (300 руб.)": (3, 300),
         "6 мес. (600 руб.)": (6, 600),
         "12 мес. (1200 руб.)": (12, 1200)
@@ -114,9 +126,17 @@ async def choose_payment_method(message: types.Message, state: FSMContext):
     await state.update_data(duration=duration, amount=amount)
 
     # Клавиатура
-    buttons = ["💸 С карты на карту", "💳 Банковской картой", "⬅️ Назад"]
-    await message.answer(f"Вы выбрали подписку на {duration} мес. Стоимость: {amount} руб.\n\nВыберите способ оплаты:",
-                         reply_markup=await kb_builder(buttons))
+    buttons = [
+        [KeyboardButton(text="💸 С карты на карту"), KeyboardButton(text="💳 Банковской картой")],
+        [KeyboardButton(text="⬅️ Назад")]
+    ]
+    keyboard = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
+
+    await message.answer(
+        f"Вы выбрали подписку на {duration} мес. Стоимость: {amount} руб.\n\nВыберите способ оплаты:",
+        reply_markup=keyboard
+    )
+
     await state.set_state(PaymentState.waiting_for_payment_method)
 
 
