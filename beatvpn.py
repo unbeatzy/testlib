@@ -5,12 +5,17 @@ import sqlite3
 import uuid
 from datetime import datetime
 
-from aiogram import Bot, Dispatcher, types, F
+
+from aiohttp import web
+
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+
+from aiogram import Bot, Dispatcher, types, F, Router
 from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.filters.state import State, StatesGroup
-from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, Message
 from yoomoney import Client, Quickpay
 from constants import ADMIN_ID, API_TOKEN, DB_NAME, WEBAPP_HOST, WEBAPP_PORT, WEBHOOK_PATH, WEBHOOK_URL, YOOMONEY_TOKEN, YOOMONEY_WALLET
 
